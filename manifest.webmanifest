@@ -1,6 +1,6 @@
 {
-  "name": "手書きメモ",
-  "short_name": "メモ",
+  "name": "Simple MEMO",
+  "short_name": "Simple MEMO",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
