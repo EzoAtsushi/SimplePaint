@@ -101,6 +101,12 @@
       background:#fff;
       touch-action:none;
     }
+  
+    /* iPad + Apple Pencil: 長押しの選択メニューやコールアウトを出しにくくする */
+    *{-webkit-tap-highlight-color: transparent;}
+    html,body{-webkit-user-select:none; user-select:none; -webkit-touch-callout:none;}
+    #canvas{-webkit-user-select:none; user-select:none; -webkit-touch-callout:none;}
+
   </style>
 </head>
 <body>
@@ -137,6 +143,8 @@
 
 <script>
 (() => {
+  document.onselectstart = () => false;
+
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d', { alpha: false });
   let dpr = Math.max(1, window.devicePixelRatio || 1);
@@ -312,6 +320,14 @@
   canvas.addEventListener('pointerup', endDraw, { passive:false });
   canvas.addEventListener('pointercancel', endDraw, { passive:false });
 
+
+  // iPad + Apple Pencil: 長押しのメニュー抑制（Safari対策）
+  canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+  canvas.addEventListener('touchstart', (e) => e.preventDefault(), { passive:false });
+  canvas.addEventListener('touchmove', (e) => e.preventDefault(), { passive:false });
+  canvas.addEventListener('touchend', (e) => e.preventDefault(), { passive:false });
+
+
   window.addEventListener('resize', () => resizeCanvas(true));
 
   requestAnimationFrame(() => resizeCanvas(false));
@@ -322,7 +338,9 @@
   // オフラインでも起動しやすくするための仕組み（Service Worker）
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./service-worker.js').catch(() => {});
+      navigator.serviceWorker.register('./service-worker.js').catch(() => {
+  document.onselectstart = () => false;
+});
     });
   }
 </script>
