@@ -1,5 +1,5 @@
 /* 手書きメモ PWA - service worker */
-const CACHE_NAME = "handwrite-memo-20260210052749";
+const CACHE_NAME = "simple-memo-stable-20260210064734";
 const ASSETS = [
   "./",
   "./index.html",

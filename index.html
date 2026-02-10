@@ -21,7 +21,7 @@
       --shadow: 0 6px 18px rgba(0,0,0,.10);
     }
     html,body{height:100%; margin:0; background:var(--bg); color:var(--text); font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;}
-    body{overflow:hidden; touch-action:none;}
+    body{overflow:hidden; touch-action:none; overscroll-behavior:none; -webkit-overflow-scrolling:auto;}
     .wrap{
       position:fixed; inset:0;
       display:flex; flex-direction:column;
@@ -107,6 +107,15 @@
     html,body{-webkit-user-select:none; user-select:none; -webkit-touch-callout:none;}
     #canvas{-webkit-user-select:none; user-select:none; -webkit-touch-callout:none;}
 
+  
+    /* iPad + Apple Pencil: 選択メニュー（コピー等）を出しにくくする */
+    *{
+      -webkit-tap-highlight-color: transparent;
+      -webkit-user-select:none;
+      user-select:none;
+      -webkit-touch-callout:none;
+    }
+
   </style>
 </head>
 <body>
@@ -143,6 +152,16 @@
 
 <script>
 (() => {
+  // iPad: テキスト選択が発生したら即解除
+  document.addEventListener('selectionchange', () => {
+    const sel = document.getSelection?.();
+    if (sel && sel.type === 'Range') sel.removeAllRanges();
+  });
+  // ピンチ/回転などのジェスチャー抑制
+  document.addEventListener('gesturestart', (e) => e.preventDefault(), { passive:false });
+  document.addEventListener('gesturechange', (e) => e.preventDefault(), { passive:false });
+  document.addEventListener('gestureend', (e) => e.preventDefault(), { passive:false });
+
   document.onselectstart = () => false;
 
   const canvas = document.getElementById('canvas');
@@ -153,6 +172,7 @@
   let penSize = 3;
 
   let drawing = false;
+  let activePointerId = null;
   let lastX = 0, lastY = 0;
 
   function cssSize() {
@@ -280,55 +300,63 @@
 
   function startDraw(e) {
     drawing = true;
+    activePointerId = (e.pointerId !== undefined) ? e.pointerId : null;
+
     const p = getPos(e);
     lastX = p.x; lastY = p.y;
 
     ctx.strokeStyle = penColor;
     ctx.lineWidth = penSize;
+
+    // 点（タップ）でも見えるようにする
     ctx.beginPath();
     ctx.moveTo(lastX, lastY);
     ctx.lineTo(lastX + 0.01, lastY + 0.01);
     ctx.stroke();
 
-    canvas.setPointerCapture?.(e.pointerId);
+    try { canvas.setPointerCapture?.(activePointerId); } catch (_) {}
     e.preventDefault();
   }
 
   function moveDraw(e) {
     if (!drawing) return;
-    const p = getPos(e);
+    if (activePointerId !== null && e.pointerId !== undefined && e.pointerId !== activePointerId) return;
+
+    // 速いストロークでも途切れにくくする（中間点をまとめて取得）
+    const evs = (typeof e.getCoalescedEvents === 'function') ? e.getCoalescedEvents() : [e];
 
     ctx.strokeStyle = penColor;
     ctx.lineWidth = penSize;
-    ctx.beginPath();
-    ctx.moveTo(lastX, lastY);
-    ctx.lineTo(p.x, p.y);
-    ctx.stroke();
 
-    lastX = p.x; lastY = p.y;
+    for (const ev of evs) {
+      const p = getPos(ev);
+      ctx.beginPath();
+      ctx.moveTo(lastX, lastY);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+      lastX = p.x; lastY = p.y;
+    }
     e.preventDefault();
   }
 
   function endDraw(e) {
     drawing = false;
-    canvas.releasePointerCapture?.(e.pointerId);
+    try { if (activePointerId !== null) canvas.releasePointerCapture?.(activePointerId); } catch (_) {}
+    activePointerId = null;
     e.preventDefault();
   }
 
-  canvas.addEventListener('pointerdown', startDraw, { passive:false });
-  canvas.addEventListener('pointermove', moveDraw, { passive:false });
-  canvas.addEventListener('pointerup', endDraw, { passive:false });
-  canvas.addEventListener('pointercancel', endDraw, { passive:false });
+  canvas.addEventListener('pointerdown', startDraw, { passive:false, capture:true });
+  canvas.addEventListener('touchstart', (e) => e.preventDefault(), { passive:false, capture:true });
+  canvas.addEventListener('pointermove', moveDraw, { passive:false, capture:true });
+  // ペン入力の高頻度更新（対応ブラウザのみ）
+  canvas.addEventListener('pointerrawupdate', moveDraw, { passive:false, capture:true });
+  canvas.addEventListener('pointerup', endDraw, { passive:false, capture:true });
+  canvas.addEventListener('pointercancel', endDraw, { passive:false, capture:true });
 
-
-  // iPad + Apple Pencil: 長押しのメニュー抑制（Safari対策）
-  canvas.addEventListener('contextmenu', (e) => e.preventDefault());
-  canvas.addEventListener('touchstart', (e) => e.preventDefault(), { passive:false });
-  canvas.addEventListener('touchmove', (e) => e.preventDefault(), { passive:false });
-  canvas.addEventListener('touchend', (e) => e.preventDefault(), { passive:false });
-
-
-  window.addEventListener('resize', () => resizeCanvas(true));
+  // 長押しメニュー抑制
+  canvas.addEventListener('contextmenu', (e) => e.preventDefault(), { capture:true });
+window.addEventListener('resize', () => resizeCanvas(true));
 
   requestAnimationFrame(() => resizeCanvas(false));
 })();
@@ -339,6 +367,16 @@
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('./service-worker.js').catch(() => {
+  // iPad: テキスト選択が発生したら即解除
+  document.addEventListener('selectionchange', () => {
+    const sel = document.getSelection?.();
+    if (sel && sel.type === 'Range') sel.removeAllRanges();
+  });
+  // ピンチ/回転などのジェスチャー抑制
+  document.addEventListener('gesturestart', (e) => e.preventDefault(), { passive:false });
+  document.addEventListener('gesturechange', (e) => e.preventDefault(), { passive:false });
+  document.addEventListener('gestureend', (e) => e.preventDefault(), { passive:false });
+
   document.onselectstart = () => false;
 });
     });
